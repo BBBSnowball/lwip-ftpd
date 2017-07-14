@@ -56,6 +56,19 @@ int dbg_printf(const char *fmt, ...);
 #endif
 #endif
 
+#ifndef ftpd_logd
+#define ftpd_logd(fmt, ...) dbg_printf(fmt "\n", ## __VA_ARGS__)
+#endif
+#ifndef ftpd_logi
+#define ftpd_logi(fmt, ...) dbg_printf(fmt "\n", ## __VA_ARGS__)
+#endif
+#ifndef ftpd_logw
+#define ftpd_logw(fmt, ...) dbg_printf(fmt "\n", ## __VA_ARGS__)
+#endif
+#ifndef ftpd_loge
+#define ftpd_loge(fmt, ...) dbg_printf(fmt "\n", ## __VA_ARGS__)
+#endif
+
 #define EINVAL 1
 #define ENOMEM 2
 #define ENODEV 3
@@ -307,7 +320,7 @@ static int sfifo_write(sfifo_t *f, const void *_buf, int len)
 
 	/* total = len = min(space, len) */
 	total = sfifo_space(f);
-	DBG(dbg_printf("sfifo_space() = %d\n",total));
+	DBG(ftpd_logd("sfifo_space() = %d",total));
 	if(len > total)
 		len = total;
 	else
@@ -356,7 +369,7 @@ static void ftpd_dataerr(void *arg, err_t err)
 {
 	struct ftpd_datastate *fsd = arg;
 
-	dbg_printf("ftpd_dataerr: %s (%i)\n", lwip_strerr(err), err);
+	ftpd_loge("ftpd_dataerr: %s (%i)", lwip_strerr(err), err);
 	if (fsd == NULL)
 		return;
 	fsd->msgfs->datafs = NULL;
@@ -404,7 +417,7 @@ static void send_data(struct tcp_pcb *pcb, struct ftpd_datastate *fsd)
 		if ((i + len) > fsd->fifo.size) {
 			err = tcp_write(pcb, fsd->fifo.buffer + i, (u16_t)(fsd->fifo.size - i), 1);
 			if (err != ERR_OK) {
-				dbg_printf("send_data: error writing!\n");
+				ftpd_loge("send_data: error writing!");
 				return;
 			}
 			len -= fsd->fifo.size - i;
@@ -414,7 +427,7 @@ static void send_data(struct tcp_pcb *pcb, struct ftpd_datastate *fsd)
 
 		err = tcp_write(pcb, fsd->fifo.buffer + i, len, 1);
 		if (err != ERR_OK) {
-			dbg_printf("send_data: error writing!\n");
+			ftpd_loge("send_data: error writing!");
 			return;
 		}
 		fsd->fifo.readpos += len;
@@ -425,13 +438,12 @@ static void send_file(struct ftpd_datastate *fsd, struct tcp_pcb *pcb)
 {
 	if (!fsd->connected)
 		return;
-
 	if (fsd->vfs_file) {
 		char* buffer = (char*)malloc(2048);
 		int len;
 
 		if (!buffer) {
-			dbg_printf("send_file: Out of memory\n");
+			ftpd_loge("send_file: Out of memory");
 			return;
 		}
 
@@ -486,7 +498,7 @@ static void send_next_directory(struct ftpd_datastate *fsd, struct tcp_pcb *pcb,
 
 	buffer = (char*)malloc(1024);
 	if (!buffer) {
-		dbg_printf("send_next_directory: Out of memory\n");
+		ftpd_loge("send_next_directory: Out of memory");
 		return;
 	}
 
@@ -549,15 +561,16 @@ static void send_next_directory(struct ftpd_datastate *fsd, struct tcp_pcb *pcb,
 		fsm->datafs = NULL;
 		fsm->state = FTPD_IDLE;
 		send_msg(msgpcb, fsm, msg226);
+		free(buffer);
 		return;
 	}
 	}
+	free(buffer);
 }
 
 static err_t ftpd_datasent(void *arg, struct tcp_pcb *pcb, u16_t len)
 {
 	struct ftpd_datastate *fsd = arg;
-
 	switch (fsd->msgfs->state) {
 	case FTPD_LIST:
 		send_next_directory(fsd, pcb, 0);
@@ -578,7 +591,6 @@ static err_t ftpd_datasent(void *arg, struct tcp_pcb *pcb, u16_t len)
 static err_t ftpd_datarecv(void *arg, struct tcp_pcb *pcb, struct pbuf *p, err_t err)
 {
 	struct ftpd_datastate *fsd = arg;
-
 	if (err == ERR_OK && p != NULL) {
 		struct pbuf *q;
 		u16_t tot_len = 0;
@@ -612,14 +624,12 @@ static err_t ftpd_datarecv(void *arg, struct tcp_pcb *pcb, struct pbuf *p, err_t
 		fsm->state = FTPD_IDLE;
 		send_msg(msgpcb, fsm, msg226);
 	}
-
 	return ERR_OK;
 }
 
 static err_t ftpd_dataconnected(void *arg, struct tcp_pcb *pcb, err_t err)
 {
 	struct ftpd_datastate *fsd = arg;
-
 	fsd->msgfs->datapcb = pcb;
 	fsd->connected = 1;
 
@@ -632,7 +642,6 @@ static err_t ftpd_dataconnected(void *arg, struct tcp_pcb *pcb, err_t err)
 	tcp_sent(pcb, ftpd_datasent);
 
 	tcp_err(pcb, ftpd_dataerr);
-
 	switch (fsd->msgfs->state) {
 	case FTPD_LIST:
 		send_next_directory(fsd, pcb, 0);
@@ -646,7 +655,6 @@ static err_t ftpd_dataconnected(void *arg, struct tcp_pcb *pcb, err_t err)
 	default:
 		break;
 	}
-
 	return ERR_OK;
 }
 
@@ -694,7 +702,7 @@ static int open_dataconnection(struct tcp_pcb *pcb, struct ftpd_msgstate *fsm)
 	fsm->datafs = malloc(sizeof(struct ftpd_datastate));
 
 	if (fsm->datafs == NULL) {
-		dbg_printf("open_dataconnection: Out of memory\n");
+		ftpd_loge("open_dataconnection: Out of memory");
 		send_msg(pcb, fsm, msg451);
 		return 1;
 	}
@@ -805,12 +813,14 @@ static void cmd_list_common(const char *arg, struct tcp_pcb *pcb, struct ftpd_ms
 
 	cwd = vfs_getcwd(fsm->vfs, NULL, 0);
 	if ((!cwd)) {
+
 		send_msg(pcb, fsm, msg451);
 		return;
 	}
 	vfs_dir = vfs_opendir(fsm->vfs, cwd);
 	free(cwd);
 	if (!vfs_dir) {
+
 		send_msg(pcb, fsm, msg451);
 		return;
 	}
@@ -870,7 +880,6 @@ static void cmd_retr(const char *arg, struct tcp_pcb *pcb, struct ftpd_msgstate 
 static void cmd_stor(const char *arg, struct tcp_pcb *pcb, struct ftpd_msgstate *fsm)
 {
 	vfs_file_t *vfs_file;
-
 	vfs_file = vfs_open(fsm->vfs, arg, "wb");
 	if (!vfs_file) {
 		send_msg(pcb, fsm, msg550);
@@ -878,7 +887,6 @@ static void cmd_stor(const char *arg, struct tcp_pcb *pcb, struct ftpd_msgstate 
 	}
 
 	send_msg(pcb, fsm, msg150stor, arg);
-
 	if (open_dataconnection(pcb, fsm) != 0) {
 		vfs_close(vfs_file);
 		return;
@@ -909,7 +917,7 @@ static void cmd_pasv(const char *arg, struct tcp_pcb *pcb, struct ftpd_msgstate 
 	fsm->datafs = malloc(sizeof(struct ftpd_datastate));
 
 	if (fsm->datafs == NULL) {
-		dbg_printf("cmd_pasv: Out of memory\n");
+		ftpd_loge("cmd_pasv: Out of memory");
 		send_msg(pcb, fsm, msg451);
 		return;
 	}
@@ -956,7 +964,7 @@ static void cmd_pasv(const char *arg, struct tcp_pcb *pcb, struct ftpd_msgstate 
 
 	temppcb = tcp_listen(fsm->datalistenpcb);
 	if (!temppcb) {
-		dbg_printf("cmd_pasv: tcp_listen failed\n");
+		ftpd_loge("cmd_pasv: tcp_listen failed");
 		ftpd_dataclose(fsm->datalistenpcb, fsm->datafs);
 		fsm->datalistenpcb = NULL;
 		fsm->datafs = NULL;
@@ -992,7 +1000,7 @@ static void cmd_abrt(const char *arg, struct tcp_pcb *pcb, struct ftpd_msgstate 
 
 static void cmd_type(const char *arg, struct tcp_pcb *pcb, struct ftpd_msgstate *fsm)
 {
-	dbg_printf("Got TYPE -%s-\n", arg);
+	ftpd_logi("Got TYPE -%s-", arg);
 	
 	if(strcmp(arg, "I") != 0) {
 		send_msg(pcb, fsm, msg502);
@@ -1004,7 +1012,7 @@ static void cmd_type(const char *arg, struct tcp_pcb *pcb, struct ftpd_msgstate 
 
 static void cmd_mode(const char *arg, struct tcp_pcb *pcb, struct ftpd_msgstate *fsm)
 {
-	dbg_printf("Got MODE -%s-\n", arg);
+	ftpd_logi("Got MODE -%s-", arg);
 	send_msg(pcb, fsm, msg502);
 }
 
@@ -1022,7 +1030,7 @@ static void cmd_rnfr(const char *arg, struct tcp_pcb *pcb, struct ftpd_msgstate 
 		free(fsm->renamefrom);
 	fsm->renamefrom = malloc(strlen(arg) + 1);
 	if (fsm->renamefrom == NULL) {
-		dbg_printf("cmd_rnfr: Out of memory\n");
+		ftpd_loge("cmd_rnfr: Out of memory");
 		send_msg(pcb, fsm, msg451);
 		return;
 	}
@@ -1178,7 +1186,7 @@ static void send_msgdata(struct tcp_pcb *pcb, struct ftpd_msgstate *fsm)
 		if ((i + len) > fsm->fifo.size) {
 			err = tcp_write(pcb, fsm->fifo.buffer + i, (u16_t)(fsm->fifo.size - i), 1);
 			if (err != ERR_OK) {
-				dbg_printf("send_msgdata: error writing!\n");
+				ftpd_loge("send_msgdata: error writing!");
 				return;
 			}
 			len -= fsm->fifo.size - i;
@@ -1188,7 +1196,7 @@ static void send_msgdata(struct tcp_pcb *pcb, struct ftpd_msgstate *fsm)
 
 		err = tcp_write(pcb, fsm->fifo.buffer + i, len, 1);
 		if (err != ERR_OK) {
-			dbg_printf("send_msgdata: error writing!\n");
+			ftpd_loge("send_msgdata: error writing!");
 			return;
 		}
 		fsm->fifo.readpos += len;
@@ -1209,7 +1217,7 @@ static void send_msg(struct tcp_pcb *pcb, struct ftpd_msgstate *fsm, char *msg, 
 	if (sfifo_space(&fsm->fifo) < len)
 		return;
 	sfifo_write(&fsm->fifo, buffer, len);
-	dbg_printf("response: %s", buffer);
+	ftpd_logi("response: %s", buffer);
 	send_msgdata(pcb, fsm);
 }
 
@@ -1217,7 +1225,7 @@ static void ftpd_msgerr(void *arg, err_t err)
 {
 	struct ftpd_msgstate *fsm = arg;
 
-	dbg_printf("ftpd_msgerr: %s (%i)\n", lwip_strerr(err), err);
+	ftpd_loge("ftpd_msgerr: %s (%i)", lwip_strerr(err), err);
 	if (fsm == NULL)
 		return;
 	if (fsm->datafs)
@@ -1289,7 +1297,7 @@ static err_t ftpd_msgrecv(void *arg, struct tcp_pcb *pcb, struct pbuf *p, err_t 
 			while (((*pt == '\r') || (*pt == '\n')) && pt >= text)
 				*pt-- = '\0';
 
-			dbg_printf("query: %s\n", text);
+			ftpd_logi("query: %s", text);
 
 			strncpy(cmd, text, 4);
 			for (pt = cmd; isalpha(*pt) && pt < &cmd[4]; pt++)
@@ -1358,7 +1366,7 @@ static err_t ftpd_msgaccept(void *arg, struct tcp_pcb *pcb, err_t err)
 	fsm = malloc(sizeof(struct ftpd_msgstate));
 
 	if (fsm == NULL) {
-		dbg_printf("ftpd_msgaccept: Out of memory\n");
+		ftpd_loge("ftpd_msgaccept: Out of memory");
 		return ERR_MEM;
 	}
 	memset(fsm, 0, sizeof(struct ftpd_msgstate));
