@@ -811,9 +811,14 @@ static void cmd_list_common(const char *arg, struct tcp_pcb *pcb, struct ftpd_ms
 	vfs_dir_t *vfs_dir;
 	char *cwd;
 
+	if (!fsm->datafs) {
+		ftpd_loge("cmd_list_common: fsm->datafs is NULL");
+		send_msg(pcb, fsm, msg451);
+		return;
+	}
+
 	cwd = vfs_getcwd(fsm->vfs, NULL, 0);
 	if ((!cwd)) {
-
 		send_msg(pcb, fsm, msg451);
 		return;
 	}
@@ -925,6 +930,7 @@ static void cmd_pasv(const char *arg, struct tcp_pcb *pcb, struct ftpd_msgstate 
 
 	if (sfifo_init(&fsm->datafs->fifo, 2000) != 0) {
 		free(fsm->datafs);
+		fsm->datafs = NULL;
 		send_msg(pcb, fsm, msg451);
 		return;
 	}
@@ -932,8 +938,9 @@ static void cmd_pasv(const char *arg, struct tcp_pcb *pcb, struct ftpd_msgstate 
 	fsm->datalistenpcb = tcp_new();
 
 	if (fsm->datalistenpcb == NULL) {
-		free(fsm->datafs);
 		sfifo_close(&fsm->datafs->fifo);
+		free(fsm->datafs);
+		fsm->datafs = NULL;
 		send_msg(pcb, fsm, msg451);
 		return;
 	}
@@ -1228,8 +1235,11 @@ static void ftpd_msgerr(void *arg, err_t err)
 	ftpd_loge("ftpd_msgerr: %s (%i)", lwip_strerr(err), err);
 	if (fsm == NULL)
 		return;
-	if (fsm->datafs)
+	if (fsm->datafs) {
 		ftpd_dataclose(fsm->datapcb, fsm->datafs);
+		fsm->datapcb = NULL;
+		fsm->datafs = NULL;
+	}
 	sfifo_close(&fsm->fifo);
 	vfs_close(fsm->vfs);
 	fsm->vfs = NULL;
@@ -1244,8 +1254,11 @@ static void ftpd_msgclose(struct tcp_pcb *pcb, struct ftpd_msgstate *fsm)
 	tcp_arg(pcb, NULL);
 	tcp_sent(pcb, NULL);
 	tcp_recv(pcb, NULL);
-	if (fsm->datafs)
+	if (fsm->datafs) {
 		ftpd_dataclose(fsm->datapcb, fsm->datafs);
+		fsm->datapcb = NULL;
+		fsm->datafs = NULL;
+	}
 	sfifo_close(&fsm->fifo);
 	vfs_close(fsm->vfs);
 	fsm->vfs = NULL;
