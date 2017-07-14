@@ -427,26 +427,36 @@ static void send_file(struct ftpd_datastate *fsd, struct tcp_pcb *pcb)
 		return;
 
 	if (fsd->vfs_file) {
-		char buffer[2048];
+		char* buffer = (char*)malloc(2048);
 		int len;
+
+		if (!buffer) {
+			dbg_printf("send_file: Out of memory\n");
+			return;
+		}
 
 		len = sfifo_space(&fsd->fifo);
 		if (len == 0) {
 			send_data(pcb, fsd);
+			free(buffer);
 			return;
 		}
 		if (len > 2048)
 			len = 2048;
 		len = vfs_read(buffer, 1, len, fsd->vfs_file);
 		if (len == 0) {
-			if (vfs_eof(fsd->vfs_file) == 0)
+			if (vfs_eof(fsd->vfs_file) == 0) {
+				free(buffer);
 				return;
+			}
 			vfs_close(fsd->vfs_file);
 			fsd->vfs_file = NULL;
+			free(buffer);
 			return;
 		}
 		sfifo_write(&fsd->fifo, buffer, len);
 		send_data(pcb, fsd);
+		free(buffer);
 	} else {
 		struct ftpd_msgstate *fsm;
 		struct tcp_pcb *msgpcb;
@@ -471,8 +481,14 @@ static void send_file(struct ftpd_datastate *fsd, struct tcp_pcb *pcb)
 
 static void send_next_directory(struct ftpd_datastate *fsd, struct tcp_pcb *pcb, int shortlist)
 {
-	char buffer[1024];
+	char* buffer;
 	int len;
+
+	buffer = (char*)malloc(1024);
+	if (!buffer) {
+		dbg_printf("send_next_directory: Out of memory\n");
+		return;
+	}
 
 	while (1) {
 	if (fsd->vfs_dirent == NULL)
@@ -483,6 +499,7 @@ static void send_next_directory(struct ftpd_datastate *fsd, struct tcp_pcb *pcb,
 			len = sprintf(buffer, "%s\r\n", fsd->vfs_dirent->name);
 			if (sfifo_space(&fsd->fifo) < len) {
 				send_data(pcb, fsd);
+				free(buffer);
 				return;
 			}
 			sfifo_write(&fsd->fifo, buffer, len);
@@ -507,6 +524,7 @@ static void send_next_directory(struct ftpd_datastate *fsd, struct tcp_pcb *pcb,
 				buffer[0] = 'd';
 			if (sfifo_space(&fsd->fifo) < len) {
 				send_data(pcb, fsd);
+				free(buffer);
 				return;
 			}
 			sfifo_write(&fsd->fifo, buffer, len);
@@ -518,6 +536,7 @@ static void send_next_directory(struct ftpd_datastate *fsd, struct tcp_pcb *pcb,
 
 		if (sfifo_used(&fsd->fifo) > 0) {
 			send_data(pcb, fsd);
+			free(buffer);
 			return;
 		}
 		fsm = fsd->msgfs;
