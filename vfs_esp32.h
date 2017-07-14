@@ -148,8 +148,8 @@ static inline const char* abspath_(vfs_t* vfs, char* buffer, size_t buflen, cons
     // an absolute path to many other commands.
     //NOTE We mustn't overwrite the cwd so we only support absolute paths that point to
     //     a location inside the cwd.
-    if (memcmp(buffer+vfs->rootlen-1, path, vfs->cwdlen-vfs->rootlen) != 0
-        || (path[vfs->cwdlen-vfs->rootlen] != 0 && path[vfs->cwdlen-vfs->rootlen] != '/')) {
+    if (limit_to_cwd && (memcmp(buffer+vfs->rootlen-1, path, vfs->cwdlen-vfs->rootlen) != 0
+        || (path[vfs->cwdlen-vfs->rootlen] != 0 && path[vfs->cwdlen-vfs->rootlen] != '/'))) {
       ESP_LOGW(TAG, "refusing absolute path which doesn't point into the current cwd");
       return NULL;
     }
@@ -202,7 +202,7 @@ static inline int vfs_chdir(vfs_t* vfs, const char* path) {
 
   struct stat st;
   vfs->file1[len-1] = 0;
-  if (stat(path, &st) == 0 && S_ISDIR(st.st_mode)) {
+  if (len == vfs->rootlen || (stat(path, &st) == 0 && S_ISDIR(st.st_mode))) {
     vfs->file1[len-1] = '/';
     vfs->cwdlen = len;
     memcpy(vfs->file2, vfs->file1, len+1);
