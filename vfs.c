@@ -71,11 +71,11 @@ int vfs_stat(vfs_t* vfs, const char* filename, vfs_stat_t* st) {
 }
 
 void vfs_close(vfs_t* vfs) {
-	if (vfs != &guard_for_the_whole_fs) {
-		/* Close a file */
-		f_close(vfs);
-		free(vfs);
-	}
+}
+
+void vfs_close_file(vfs_file_t* file) {
+	f_close(vfs);
+	free(vfs);
 }
 
 int vfs_write (void* buffer, int dummy, int len, vfs_file_t* file) {

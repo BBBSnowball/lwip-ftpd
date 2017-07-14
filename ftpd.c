@@ -461,7 +461,7 @@ static void send_file(struct ftpd_datastate *fsd, struct tcp_pcb *pcb)
 				free(buffer);
 				return;
 			}
-			vfs_close(fsd->vfs_file);
+			vfs_close_file(fsd->vfs_file);
 			fsd->vfs_file = NULL;
 			free(buffer);
 			return;
@@ -480,7 +480,7 @@ static void send_file(struct ftpd_datastate *fsd, struct tcp_pcb *pcb)
 		fsm = fsd->msgfs;
 		msgpcb = fsd->msgpcb;
 
-		vfs_close(fsd->vfs_file);
+		vfs_close_file(fsd->vfs_file);
 		fsd->vfs_file = NULL;
 		ftpd_dataclose(pcb, fsd);
 		fsm->datapcb = NULL;
@@ -616,7 +616,7 @@ static err_t ftpd_datarecv(void *arg, struct tcp_pcb *pcb, struct pbuf *p, err_t
 		fsm = fsd->msgfs;
 		msgpcb = fsd->msgpcb;
 
-		vfs_close(fsd->vfs_file);
+		vfs_close_file(fsd->vfs_file);
 		fsd->vfs_file = NULL;
 		ftpd_dataclose(pcb, fsd);
 		fsm->datapcb = NULL;
@@ -869,7 +869,7 @@ static void cmd_retr(const char *arg, struct tcp_pcb *pcb, struct ftpd_msgstate 
 	send_msg(pcb, fsm, msg150recv, arg, st.st_size);
 
 	if (open_dataconnection(pcb, fsm) != 0) {
-		vfs_close(vfs_file);
+		vfs_close_file(vfs_file);
 		return;
 	}
 
@@ -888,7 +888,7 @@ static void cmd_stor(const char *arg, struct tcp_pcb *pcb, struct ftpd_msgstate 
 
 	send_msg(pcb, fsm, msg150stor, arg);
 	if (open_dataconnection(pcb, fsm) != 0) {
-		vfs_close(vfs_file);
+		vfs_close_file(vfs_file);
 		return;
 	}
 

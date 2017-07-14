@@ -48,8 +48,6 @@ typedef FILE vfs_file_t;
 typedef struct stat vfs_stat_t;
 typedef struct dirent vfs_dirent_t;
 typedef struct {
-  // required for vfs_close
-  char marker[8];
   // We have two buffers for absolute paths. The first cwdlen characters
   // will always contain the current working directory (cwd). The last
   // character of the cwd will always be a slash (unless temporary
@@ -93,23 +91,15 @@ static inline vfs_t* vfs_openfs() {
   strcpy(vfs->file1, VFS_ROOT);
   strcpy(vfs->file2, VFS_ROOT);
   vfs->rootlen = vfs->cwdlen = strlen(VFS_ROOT);
-  memcpy(vfs->marker, "FTPDVFS", 8);
   return vfs;
 }
 
-//NOTE vfs_close is used for vfs_t as well as vfs_file_t.
-static inline void vfs_close(void* vfs_or_file) {
-  //TODO This is so ugly...
-  // The first member in FILE is a pointer. They usually have a fairly
-  // high value in the upper byte so this is unlikely to ever clash with
-  // an uppercase letter - at least I hope so.
-  if (memcmp(vfs_or_file, "FTPDVFS", 8) == 0) {
-    // It is a vfs_t.
-    free(vfs_or_file);
-  } else {
-    // It is a FILE.
-    fclose((FILE*)vfs_or_file);
-  }
+static inline void vfs_close(vfs_t* vfs) {
+  free(vfs);
+}
+
+static inline void vfs_close_file(vfs_file_t* file) {
+  fclose(file);
 }
 
 static inline void normalize_path(char* path) {
