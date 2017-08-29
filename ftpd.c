@@ -1231,12 +1231,12 @@ static void send_msg(struct tcp_pcb *pcb, struct ftpd_msgstate *fsm, char *msg, 
 	va_start(arg, msg);
 	vsprintf(buffer, msg, arg);
 	va_end(arg);
-	strcat(buffer, "\r\n");
 	len = strlen(buffer);
-	if (sfifo_space(&fsm->fifo) < len)
+	if (sfifo_space(&fsm->fifo) < len+2)
 		return;
-	sfifo_write(&fsm->fifo, buffer, len);
 	ftpd_logi("response: %s", buffer);
+	strcpy(buffer+len, "\r\n");
+	sfifo_write(&fsm->fifo, buffer, len+2);
 	send_msgdata(pcb, fsm);
 }
 
