@@ -276,7 +276,6 @@ static inline vfs_dir_t* vfs_opendir(vfs_t* vfs, const char* path) {
   path = abspath(vfs, path);
   if (!path)
     return NULL;
-  ESP_LOGI(TAG, "vfs_opendir for \"%s\"", path);
   return opendir(path);
 }
 

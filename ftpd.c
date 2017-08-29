@@ -1019,8 +1019,6 @@ static void cmd_abrt(const char *arg, struct tcp_pcb *pcb, struct ftpd_msgstate 
 
 static void cmd_type(const char *arg, struct tcp_pcb *pcb, struct ftpd_msgstate *fsm)
 {
-	ftpd_logi("Got TYPE -%s-", arg);
-	
 	if(strcmp(arg, "I") != 0) {
 		send_msg(pcb, fsm, msg502);
 		return;
@@ -1031,7 +1029,6 @@ static void cmd_type(const char *arg, struct tcp_pcb *pcb, struct ftpd_msgstate 
 
 static void cmd_mode(const char *arg, struct tcp_pcb *pcb, struct ftpd_msgstate *fsm)
 {
-	ftpd_logi("Got MODE -%s-", arg);
 	send_msg(pcb, fsm, msg502);
 }
 
@@ -1234,7 +1231,7 @@ static void send_msg(struct tcp_pcb *pcb, struct ftpd_msgstate *fsm, char *msg, 
 	len = strlen(buffer);
 	if (sfifo_space(&fsm->fifo) < len+2)
 		return;
-	ftpd_logi("response: %s", buffer);
+	ftpd_logi("< %s", buffer);
 	strcpy(buffer+len, "\r\n");
 	sfifo_write(&fsm->fifo, buffer, len+2);
 	send_msgdata(pcb, fsm);
@@ -1320,7 +1317,7 @@ static err_t ftpd_msgrecv(void *arg, struct tcp_pcb *pcb, struct pbuf *p, err_t 
 			while (((*pt == '\r') || (*pt == '\n')) && pt >= text)
 				*pt-- = '\0';
 
-			ftpd_logi("query: %s", text);
+			ftpd_logi("> %s", text);
 
 			strncpy(cmd, text, 4);
 			for (pt = cmd; isalpha(*pt) && pt < &cmd[4]; pt++)
