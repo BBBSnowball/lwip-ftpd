@@ -494,9 +494,10 @@ static void send_file(struct ftpd_datastate *fsd, struct tcp_pcb *pcb)
 static void send_next_directory(struct ftpd_datastate *fsd, struct tcp_pcb *pcb, int shortlist)
 {
 	char* buffer;
+	size_t buffer_size = 1024;
 	int len;
 
-	buffer = (char*)malloc(1024);
+	buffer = (char*)malloc(buffer_size);
 	if (!buffer) {
 		ftpd_loge("send_next_directory: Out of memory");
 		return;
@@ -528,13 +529,15 @@ static void send_next_directory(struct ftpd_datastate *fsd, struct tcp_pcb *pcb,
 
 			vfs_stat(fsd->msgfs->vfs, fsd->vfs_dirent->name, &st);
 			s_time = gmtime(&st.st_mtime);
+			if (s_time->tm_mon < 0 || s_time->tm_mon >= 12)
+				s_time->tm_mon = 0;
 			if (s_time->tm_year == current_year)
-				len = sprintf(buffer, "-rw-rw-rw-   1 user     ftp  %11ld %s %02i %02i:%02i %s\r\n", st.st_size, month_table[s_time->tm_mon - 1], s_time->tm_mday, s_time->tm_hour, s_time->tm_min, fsd->vfs_dirent->name);
+				len = snprintf(buffer, buffer_size, "-rw-rw-rw-   1 user     ftp  %11ld %3s %02i %02i:%02i %s\r\n", st.st_size, month_table[s_time->tm_mon], s_time->tm_mday, s_time->tm_hour, s_time->tm_min, fsd->vfs_dirent->name);
 			else
-				len = sprintf(buffer, "-rw-rw-rw-   1 user     ftp  %11ld %s %02i %5i %s\r\n", st.st_size, month_table[s_time->tm_mon - 1], s_time->tm_mday, s_time->tm_year + 1900, fsd->vfs_dirent->name);
+				len = snprintf(buffer, buffer_size, "-rw-rw-rw-   1 user     ftp  %11ld %3s %02i %5i %s\r\n", st.st_size, month_table[s_time->tm_mon], s_time->tm_mday, s_time->tm_year + 1900, fsd->vfs_dirent->name);
 			if (VFS_ISDIR(st.st_mode))
 				buffer[0] = 'd';
-			if (sfifo_space(&fsd->fifo) < len) {
+			if (len > 0 && sfifo_space(&fsd->fifo) < len) {
 				send_data(pcb, fsd);
 				free(buffer);
 				return;
