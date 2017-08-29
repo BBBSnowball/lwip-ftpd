@@ -144,19 +144,23 @@ static inline const char* abspath_(vfs_t* vfs, char* buffer, size_t buflen, cons
   buffer[vfs->cwdlen-1] = '/';
 
   if (*path == '/') {
-    // It is an absolute path. We always get this for vfs_opendir and the user may pass
-    // an absolute path to many other commands.
-    //NOTE We mustn't overwrite the cwd so we only support absolute paths that point to
-    //     a location inside the cwd.
-    if (limit_to_cwd && (memcmp(buffer+vfs->rootlen-1, path, vfs->cwdlen-vfs->rootlen) != 0
-        || (path[vfs->cwdlen-vfs->rootlen] != 0 && path[vfs->cwdlen-vfs->rootlen] != '/'))) {
-      ESP_LOGW(TAG, "refusing absolute path which doesn't point into the current cwd");
-      return NULL;
+    if (limit_to_cwd) {
+      // It is an absolute path. We always get this for vfs_opendir and the user may pass
+      // an absolute path to many other commands.
+      //NOTE We mustn't overwrite the cwd so we only support absolute paths that point to
+      //     a location inside the cwd.
+      if (len < vfs->cwdlen-vfs->rootlen
+          || memcmp(buffer+vfs->rootlen-1, path, vfs->cwdlen-vfs->rootlen) != 0
+          || (path[vfs->cwdlen-vfs->rootlen] != 0 && path[vfs->cwdlen-vfs->rootlen] != '/')) {
+        ESP_LOGW(TAG, "refusing absolute path which doesn't point into the current cwd");
+        return NULL;
+      }
+  
+      memcpy(buffer+vfs->cwdlen-1, path+vfs->cwdlen-vfs->rootlen, len-(vfs->cwdlen-vfs->rootlen)+1);
+    } else {
+      memcpy(buffer+vfs->rootlen-1, path, len+1);
     }
-
-    memcpy(buffer+vfs->cwdlen-1, path+vfs->cwdlen-vfs->rootlen, len-(vfs->cwdlen-vfs->rootlen)+1);
   } else {
-    buffer[vfs->cwdlen-1] = '/';
     memcpy(buffer+vfs->cwdlen, path, len+1);
   }
 
