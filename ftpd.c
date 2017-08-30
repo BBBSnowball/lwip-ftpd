@@ -1148,6 +1148,51 @@ static void cmd_dele(const char *arg, struct tcp_pcb *pcb, struct ftpd_msgstate 
 	}
 }
 
+static void cmd_mdtm(const char *arg, struct tcp_pcb *pcb, struct ftpd_msgstate *fsm)
+{
+	vfs_stat_t st;
+	struct tm *s_time;
+
+	if (arg == NULL) {
+		send_msg(pcb, fsm, msg501);
+		return;
+	}
+	if (*arg == '\0') {
+		send_msg(pcb, fsm, msg501);
+		return;
+	}
+	if (vfs_stat(fsm->vfs, arg, &st) != 0) {
+		send_msg(pcb, fsm, msg550);
+		return;
+	}
+
+	s_time = gmtime(&st.st_mtime);
+	// format for time is YYYYMMDDHHMMSS.sss but the last part is optional
+	send_msg(pcb, fsm, "213 %04i%02i%02i%02i%02i%02i",
+		s_time->tm_year + 1900, s_time->tm_mon+1, s_time->tm_mday,
+		s_time->tm_hour, s_time->tm_min, s_time->tm_sec);
+}
+
+static void cmd_size(const char *arg, struct tcp_pcb *pcb, struct ftpd_msgstate *fsm)
+{
+	vfs_stat_t st;
+
+	if (arg == NULL) {
+		send_msg(pcb, fsm, msg501);
+		return;
+	}
+	if (*arg == '\0') {
+		send_msg(pcb, fsm, msg501);
+		return;
+	}
+	if (vfs_stat(fsm->vfs, arg, &st) != 0) {
+		send_msg(pcb, fsm, msg550);
+		return;
+	}
+
+	send_msg(pcb, fsm, "213 %li", st.st_size);
+}
+
 struct ftpd_command {
 	char *cmd;
 	void (*func) (const char *arg, struct tcp_pcb * pcb, struct ftpd_msgstate * fsm);
@@ -1179,6 +1224,8 @@ static struct ftpd_command ftpd_commands[] = {
 	{"XRMD", cmd_rmd},
 	{"DELE", cmd_dele},
 	{"PASV", cmd_pasv},
+	{"MDTM", cmd_mdtm},
+	{"SIZE", cmd_size},
 	{NULL, NULL}
 };
 
@@ -1226,10 +1273,9 @@ static void send_msg(struct tcp_pcb *pcb, struct ftpd_msgstate *fsm, char *msg, 
 	int len;
 
 	va_start(arg, msg);
-	vsprintf(buffer, msg, arg);
+	len = vsnprintf(buffer, sizeof(buffer), msg, arg);
 	va_end(arg);
-	len = strlen(buffer);
-	if (sfifo_space(&fsm->fifo) < len+2)
+	if (len < 0 || sfifo_space(&fsm->fifo) < len+2)
 		return;
 	ftpd_logi("< %s", buffer);
 	strcpy(buffer+len, "\r\n");
