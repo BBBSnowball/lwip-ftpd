@@ -1319,7 +1319,6 @@ static void ftpd_msgclose(struct tcp_pcb *pcb, struct ftpd_msgstate *fsm)
 		free(fsm->renamefrom);
 	fsm->renamefrom = NULL;
 	free(fsm);
-	tcp_arg(pcb, NULL);
 	tcp_close(pcb);
 }
 
